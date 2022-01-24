@@ -1,54 +1,158 @@
-/**
- * app.js
- *
- * Use `app.js` to run your app without `sails lift`.
- * To start the server, run: `node app.js`.
- *
- * This is handy in situations where the sails CLI is not relevant or useful,
- * such as when you deploy to a server, or a PaaS like Heroku.
- *
- * For example:
- *   => `node app.js`
- *   => `npm start`
- *   => `forever start app.js`
- *   => `node debug app.js`
- *
- * The same command-line arguments and env vars are supported, e.g.:
- * `NODE_ENV=production node app.js --port=80 --verbose`
- *
- * For more information see:
- *   https://sailsjs.com/anatomy/app.js
- */
+const express = require("express");
+const bodyParser = require("body-parser");
+const { check, validationResult } = require("express-validator");
+const path = require("path");
 
+const bcrypt = require("bcrypt");
+const passport = require("passport");
+const flash = require("express-flash");
+const session = require("express-session");
+const methodOverride = require("method-override");
+const router = express.Router();
+const User = require("./database/User");
 
-// Ensure we're in the project directory, so cwd-relative paths work as expected
-// no matter where we actually lift from.
-// > Note: This is not required in order to lift, but it is a convenient default.
-process.chdir(__dirname);
+const initializePassport = require("./passport-config");
+initializePassport(passport);
 
+const app = express();
+const port = 3000;
 
+const urlEncodeParser = bodyParser.urlencoded({ extended: false });
+app.use(express.static(path.join(__dirname, "/public")));
+// app.use(express.cookieParser());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+app.set("view engine", "html");
+app.use(flash());
+app.use(
+  session({
+    resave: false,
+    saveUninitialized: false,
+    secret: "anything",
+  })
+);
 
-// Attempt to import `sails` dependency, as well as `rc` (for loading `.sailsrc` files).
-var sails;
-var rc;
-try {
-  sails = require('sails');
-  rc = require('sails/accessible/rc');
-} catch (err) {
-  console.error('Encountered an error when attempting to require(\'sails\'):');
-  console.error(err.stack);
-  console.error('--');
-  console.error('To run an app using `node app.js`, you need to have Sails installed');
-  console.error('locally (`./node_modules/sails`).  To do that, just make sure you\'re');
-  console.error('in the same directory as your app and run `npm install`.');
-  console.error();
-  console.error('If Sails is installed globally (i.e. `npm install -g sails`) you can');
-  console.error('also run this app with `sails lift`.  Running with `sails lift` will');
-  console.error('not run this file (`app.js`), but it will do exactly the same thing.');
-  console.error('(It even uses your app directory\'s local Sails install, if possible.)');
-  return;
-}//-•
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(methodOverride("_method"));
 
+app.use("/phone", checkAuthenticated, require("./route/phone.js"));
 
-// Start server
-sails.lift(rc('sails'));
+app.get("/", (req, res) => {
+  res.set({
+    "Access-control-Allow-Origin": "*",
+  });
+  res.redirect("/login");
+});
+
+// app.post("/login", async function (req, res) {
+//   //flash error handler
+//   //
+//   const codeMeli = req.body.codeMeli;
+//   const password = req.body.password;
+//   console.log(`app 47`);
+//   console.log(codeMeli);
+//   console.log(password);
+//   // console.log(data.codeMeli);
+//   const user = await User.find({}, "codeMeli telephone cellphone");
+//   let find = false;
+//   let _id;
+
+//   user.forEach((user) => {
+//     if (user.codeMeli == codeMeli) {
+//       _id = user.id;
+//       find = true;
+//       console.log(
+//         `app 59\ncode in by${codeMeli} AND in loop code :${user.codeMeli}`
+//       );
+//       // console.log(`59\n${user.id}`);
+//     }
+//   });
+//   console.log(`63\n${_id}`);
+
+//   if (!find) {
+//     console.log("64 \n not found! signup");
+//   } else return res.sendFile(path.resolve("src/front/phoneListPage.html"));
+// });
+
+app.delete("/logout", (req, res) => {
+  req.logOut();
+  res.redirect("/login");
+});
+
+app.get("/login", (req, res) => {
+  res.render(__dirname + "/views/login.ejs");
+});
+
+app.post(
+  "/login",
+  passport.authenticate("local", { failureRedirect: "/login" }),
+  async (req, res) => {
+    const id = await User.getUserId(req.body.codeMeli);
+    res.redirect(`/phone/${id}`);
+  }
+);
+
+app.get("/register", (req, res) => {
+  res.render(__dirname + "/views/register.ejs");
+});
+
+app.post(
+  "/register",
+  urlEncodeParser,
+  [
+    check("firstName", "name not in form").exists().isLength({ min: 5 }),
+    check("telephone", "telephnoe not correct").exists().isLength({ min: 5 }),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      // const alert = errors.array();
+      // res.render("register", {
+      //   alert,
+      // });
+    }
+
+    try {
+      const hashedPass = await bcrypt.hash(req.body.password, 10);
+
+      // console.log(req.body)
+      const data = {
+        firstName: req.body.firstName,
+        lastName: req.body.lastName,
+        fatherName: req.body.fatherName,
+        codeMeli: req.body.codeMeli,
+        password: hashedPass,
+        cellphone: [req.body.cellphone],
+        telephone: [req.body.telephone],
+      };
+
+      console.log(data);
+      User.addUser(data);
+
+      console.log("redirect login");
+      res.redirect("/login");
+    } catch {
+      res.redirect("/register");
+    }
+    console.log("done! 116");
+  }
+);
+
+function checkAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.redirect("/login");
+}
+
+function checkNotAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return res.redirect("/phone");
+  }
+  next();
+}
+
+app.listen(port, () => {
+  console.log(`Example app listening at http://localhost:${port}`);
+});

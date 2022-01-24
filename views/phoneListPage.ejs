@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>لیست شماره ها </title>
+    <link rel="stylesheet" href="/bootstrap/css/bootstrap.rtl.css"/>
+    <link rel="stylesheet" type="text/css" href="/styles/style.css"/>
+</head>
+<body dir='rtl'>
+    <div class="container">
+        <ul class="list-group" ></ul>
+            <li class="list-group-item active" aria-current="true">شماره تلفن ها </li>
+
+            <ol  class="list-group-item" id= "phones-list">
+            <% telephone.forEach(function(el) { %>
+                <li><%= el %></li>
+            <% }); %>
+            <% cellphone.forEach(function(el) { %>
+                <li><%= el %></li>
+            <% }); %>
+            <%if(locals.phone){ %>
+                <li><%= phone %></li>
+            <% } %>
+            </ol>
+            
+        </ul>
+
+    </br>
+    </br>
+    </br>
+        <form action="/phone/<%=id%>" method="post" id="myForm" class="form">
+          <div class="input-group mb-3">
+            <input type="text" class="form-control" id="phone-input" placeholder="شماره تلفن خود را وارد کنید" name="phone" aria-label="phone" aria-describedby="button-addon2">
+            <input  type="submit" id="submit-btn" name="save" value="ثبت">
+          </div>
+        </form>
+        
+        <form action = '/logout?_method=DELETE' method="POST">
+            <input type="submit" name = "logout" value="خروج از حساب">
+        </form>
+    </div>
+
+</br>
+</br>
+</br>
+
+    
+</body>
+</html> 
